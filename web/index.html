@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="id" x-data="app()" x-init="init()" :class="darkMode ? 'dark' : ''">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🛡️ CyberShield</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<link rel="stylesheet" href="/static/style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+    <div class="container header-inner">
+        <div class="logo">
+            <span class="logo-icon">🛡️</span>
+            <div>
+                <h1>CyberShield</h1>
+                <p class="subtitle">Professional Cybersecurity Toolkit v6.0</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button @click="darkMode = !darkMode" class="btn-icon" title="Toggle theme">
+                <span x-text="darkMode ? '☀️' : '🌙'"></span>
+            </button>
+            <button @click="showHistory = !showHistory" class="btn-icon" title="History">
+                📜
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- MAIN -->
+<main class="container main">
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <template x-for="mod in modules" :key="mod.id">
+            <a href="#" @click.prevent="active = mod.id"
+               :class="active === mod.id ? 'nav-item active' : 'nav-item'">
+                <span class="nav-icon" x-text="mod.icon"></span>
+                <span x-text="mod.name"></span>
+            </a>
+        </template>
+    </nav>
+
+    <!-- CONTENT -->
+    <section class="content">
+
+        <!-- LOADING -->
+        <div x-show="loading" class="loading">
+            <div class="spinner"></div>
+            <p x-text="loadingMsg"></p>
+        </div>
+
+        <!-- ERROR -->
+        <div x-show="error" class="alert alert-error" x-cloak>
+            <strong>❌ Error:</strong> <span x-text="error"></span>
+        </div>
+
+        <!-- ============ PASSWORD ============ -->
+        <div x-show="active === 'password' && !loading" x-cloak>
+            <h2>🔒 Password Analyzer</h2>
+            <p class="desc">Analisis kekuatan password dengan entropi + HIBP.</p>
+
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" x-model="forms.password" placeholder="Masukkan password...">
+            </div>
+            <div class="form-group">
+                <label class="checkbox">
+                    <input type="checkbox" x-model="forms.checkHibp">
+                    Cek HaveIBeenPwned (butuh internet)
+                </label>
+            </div>
+            <button @click="runPassword()" class="btn-primary">🔍 Analyze</button>
+
+            <template x-if="results.password">
+                <div class="result-card">
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">Entropy</span>
+                            <span class="metric-value" x-text="results.password.entropy + ' bits'"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Length</span>
+                            <span class="metric-value" x-text="results.password.length + ' chars'"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Crack Time</span>
+                            <span class="metric-value" x-text="results.password.crack_time"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Category</span>
+                            <span class="metric-value" :class="'sev-' + getSev(results.password.category)"
+                                  x-text="results.password.category"></span>
+                        </div>
+                    </div>
+                    <template x-if="results.password.feedback && results.password.feedback.length">
+                        <div class="feedback-list">
+                            <template x-for="fb in results.password.feedback">
+                                <div class="feedback-item" x-text="'• ' + fb"></div>
+                            </template>
+                        </div>
+                    </template>
+                    <template x-if="results.password.hibp">
+                        <div class="alert" :class="results.password.hibp.found ? 'alert-error' : 'alert-success'">
+                            <template x-if="results.password.hibp.found">
+                                <span>🚨 Bocor <strong x-text="results.password.hibp.count"></strong> kali di HIBP!</span>
+                            </template>
+                            <template x-if="!results.password.hibp.found">
+                                <span>✅ Tidak ada di HIBP</span>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ PHISHING ============ -->
+        <div x-show="active === 'phishing' && !loading" x-cloak>
+            <h2>🌐 Phishing Detector Pro Max</h2>
+            <p class="desc">30+ indikator: homoglyph, typosquat, punycode, brand impersonation.</p>
+
+            <div class="form-group">
+                <label>URL</label>
+                <input type="text" x-model="forms.url" placeholder="http://example.com/login">
+            </div>
+            <div class="form-group">
+                <label class="checkbox">
+                    <input type="checkbox" x-model="forms.fast">
+                    Fast mode (skip DNS/SSL check)
+                </label>
+            </div>
+            <button @click="runPhishing()" class="btn-primary">🔍 Analyze</button>
+
+            <template x-if="results.phishing">
+                <div class="result-card">
+                    <div class="verdict" :class="'verdict-' + results.phishing.verdict.toLowerCase().replace(' ', '-')">
+                        <div class="verdict-label" x-text="results.phishing.verdict"></div>
+                        <div class="verdict-score">
+                            <span x-text="results.phishing.risk_score"></span>/100
+                        </div>
+                        <div class="verdict-confidence" x-text="'Confidence: ' + results.phishing.confidence"></div>
+                    </div>
+
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">Host</span>
+                            <span class="metric-value" x-text="results.phishing.parsed?.host || '-'"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Scheme</span>
+                            <span class="metric-value" x-text="results.phishing.parsed?.scheme || '-'"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Indicators</span>
+                            <span class="metric-value" x-text="results.phishing.total_indicators"></span>
+                        </div>
+                    </div>
+
+                    <template x-if="results.phishing.indicators.length">
+                        <div class="indicators">
+                            <h3>Indicators</h3>
+                            <template x-for="ind in results.phishing.indicators">
+                                <div class="indicator" :class="'ind-' + ind.severity.toLowerCase()">
+                                    <div class="ind-header">
+                                        <strong x-text="ind.name"></strong>
+                                        <span class="ind-sev" x-text="ind.severity"></span>
+                                        <span class="ind-weight" x-text="'+' + ind.weight"></span>
+                                    </div>
+                                    <p class="ind-detail" x-text="ind.detail"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ PORT SCAN ============ -->
+        <div x-show="active === 'port' && !loading" x-cloak>
+            <h2>📡 Port Scanner</h2>
+            <p class="desc">Scan port TCP dengan service detection & OS fingerprint.</p>
+
+            <div class="form-group">
+                <label>Target</label>
+                <input type="text" x-model="forms.target" placeholder="scanme.nmap.org">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Preset</label>
+                    <select x-model="forms.preset">
+                        <option value="top20">Top 20</option>
+                        <option value="top100">Top 100</option>
+                        <option value="web">Web Ports</option>
+                        <option value="db">Database</option>
+                        <option value="well-known">Well-known (1-1024)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Workers</label>
+                    <input type="number" x-model.number="forms.workers" min="1" max="500">
+                </div>
+            </div>
+            <button @click="runPortScan()" class="btn-primary">🚀 Scan</button>
+
+            <template x-if="results.port">
+                <div class="result-card">
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">IP</span>
+                            <span class="metric-value" x-text="results.port.ip"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Open</span>
+                            <span class="metric-value" x-text="results.port.open_ports.length"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Risk</span>
+                            <span class="metric-value" x-text="results.port.risk_score + '/100'"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Duration</span>
+                            <span class="metric-value" x-text="results.port.duration_sec + 's'"></span>
+                        </div>
+                    </div>
+
+                    <template x-if="results.port.os_guess?.os">
+                        <p class="info-line">
+                            OS: <strong x-text="results.port.os_guess.os"></strong>
+                            (TTL <span x-text="results.port.os_guess.ttl"></span>)
+                        </p>
+                    </template>
+
+                    <template x-if="results.port.open_ports.length">
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>Port</th><th>Service</th><th>Banner</th></tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="p in results.port.open_ports" :key="p.port">
+                                    <tr>
+                                        <td><strong x-text="p.port"></strong></td>
+                                        <td x-text="p.service"></td>
+                                        <td class="mono" x-text="p.banner || '-'"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                    <template x-if="!results.port.open_ports.length">
+                        <p class="info-line">🔒 Tidak ada port terbuka</p>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ DNS ============ -->
+        <div x-show="active === 'dns' && !loading" x-cloak>
+            <h2>🔍 DNS & IP Intelligence</h2>
+            <p class="desc">Reverse DNS, geo-IP, ASN lookup.</p>
+
+            <div class="form-group">
+                <label>Domain</label>
+                <input type="text" x-model="forms.domain" placeholder="google.com">
+            </div>
+            <button @click="runDNS()" class="btn-primary">🔍 Lookup</button>
+
+            <template x-if="results.dns">
+                <div class="result-card">
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">IP</span>
+                            <span class="metric-value" x-text="results.dns.ip || '-'"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Country</span>
+                            <span class="metric-value" x-text="results.dns.country || '-'"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">ISP</span>
+                            <span class="metric-value" x-text="results.dns.isp || '-'"></span>
+                        </div>
+                    </div>
+                    <template x-if="results.dns.reverse_dns">
+                        <p class="info-line">Reverse DNS: <span x-text="results.dns.reverse_dns"></span></p>
+                    </template>
+                    <template x-if="results.dns.asn">
+                        <p class="info-line">ASN: <span x-text="results.dns.asn"></span></p>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ WEB AUDIT ============ -->
+        <div x-show="active === 'web_audit' && !loading" x-cloak>
+            <h2>💻 Web Server Auditor</h2>
+            <p class="desc">Cek security headers, cookie flags, server banner.</p>
+
+            <div class="form-group">
+                <label>URL</label>
+                <input type="text" x-model="forms.url" placeholder="https://example.com">
+            </div>
+            <div class="form-group">
+                <label class="checkbox">
+                    <input type="checkbox" x-model="forms.ignoreSsl">
+                    Ignore SSL error
+                </label>
+            </div>
+            <button @click="runWebAudit()" class="btn-primary">🔍 Audit</button>
+
+            <template x-if="results.webAudit">
+                <div class="result-card">
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">Status</span>
+                            <span class="metric-value" x-text="results.webAudit.status"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Risk</span>
+                            <span class="metric-value" x-text="results.webAudit.risk_score + '/100'"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Server</span>
+                            <span class="metric-value" x-text="results.webAudit.server || 'hidden'"></span>
+                        </div>
+                    </div>
+
+                    <template x-if="results.webAudit.headers_found.length">
+                        <div class="headers-section">
+                            <h3 class="success">✅ Headers Found</h3>
+                            <template x-for="h in results.webAudit.headers_found">
+                                <div class="header-item success-bg" x-text="h"></div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <template x-if="results.webAudit.headers_missing.length">
+                        <div class="headers-section">
+                            <h3 class="error">🚨 Headers Missing</h3>
+                            <template x-for="h in results.webAudit.headers_missing">
+                                <div class="header-item error-bg" x-text="h"></div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ SSL ============ -->
+        <div x-show="active === 'ssl' && !loading" x-cloak>
+            <h2>🔐 SSL/TLS Inspector</h2>
+            <p class="desc">Periksa cipher, chain, expiry, SAN.</p>
+
+            <div class="form-group">
+                <label>Host</label>
+                <input type="text" x-model="forms.host" placeholder="github.com">
+            </div>
+            <button @click="runSSL()" class="btn-primary">🔐 Inspect</button>
+
+            <template x-if="results.ssl">
+                <div class="result-card">
+                    <template x-if="results.ssl.error">
+                        <div class="alert alert-error" x-text="results.ssl.error"></div>
+                    </template>
+                    <template x-if="!results.ssl.error">
+                        <div>
+                            <div class="metrics">
+                                <div class="metric">
+                                    <span class="metric-label">TLS</span>
+                                    <span class="metric-value" x-text="results.ssl.tls_version"></span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Cipher</span>
+                                    <span class="metric-value" x-text="results.ssl.cipher"></span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">CN</span>
+                                    <span class="metric-value" x-text="results.ssl.cn"></span>
+                                </div>
+                            </div>
+                            <p class="info-line">Issuer: <span x-text="results.ssl.issuer"></span></p>
+                            <p class="info-line">Valid: <span x-text="results.ssl.valid_from"></span> → <span x-text="results.ssl.valid_until"></span></p>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ SUBDOMAIN ============ -->
+        <div x-show="active === 'subdomain' && !loading" x-cloak>
+            <h2>🕷️ Subdomain Enumerator</h2>
+            <p class="desc">Wordlist + crt.sh certificate transparency.</p>
+
+            <div class="form-group">
+                <label>Domain</label>
+                <input type="text" x-model="forms.domain" placeholder="example.com">
+            </div>
+            <button @click="runSubdomain()" class="btn-primary">🕷️ Enumerate</button>
+
+            <template x-if="results.subdomain">
+                <div class="result-card">
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">Total</span>
+                            <span class="metric-value" x-text="results.subdomain.total"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">crt.sh</span>
+                            <span class="metric-value" x-text="results.subdomain.crtsh_count"></span>
+                        </div>
+                    </div>
+                    <template x-if="results.subdomain.found.length">
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>Host</th><th>IP</th><th>Source</th></tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="s in results.subdomain.found">
+                                    <tr>
+                                        <td x-text="s.host"></td>
+                                        <td class="mono" x-text="s.ip || '-'"></td>
+                                        <td x-text="s.source"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ DIRECTORY ============ -->
+        <div x-show="active === 'directory' && !loading" x-cloak>
+            <h2>📂 Directory Brute-Forcer</h2>
+            <p class="desc">Cari path tersembunyi (.git, .env, admin, backup).</p>
+
+            <div class="form-group">
+                <label>Base URL</label>
+                <input type="text" x-model="forms.url" placeholder="https://example.com">
+            </div>
+            <div class="form-group">
+                <label class="checkbox">
+                    <input type="checkbox" x-model="forms.ignoreSsl">
+                    Ignore SSL
+                </label>
+            </div>
+            <button @click="runDirectory()" class="btn-primary">📂 Brute</button>
+
+            <template x-if="results.directory">
+                <div class="result-card">
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">Scanned</span>
+                            <span class="metric-value" x-text="results.directory.scanned"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Hits</span>
+                            <span class="metric-value" x-text="results.directory.total"></span>
+                        </div>
+                    </div>
+                    <template x-if="results.directory.hits.length">
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>Path</th><th>Status</th><th>Size</th></tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="h in results.directory.hits">
+                                    <tr>
+                                        <td class="mono" x-text="'/' + h.path"></td>
+                                        <td><span :class="'status-' + h.status" x-text="h.status"></span></td>
+                                        <td x-text="h.size + 'B'"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ TECH ============ -->
+        <div x-show="active === 'tech' && !loading" x-cloak>
+            <h2>🧬 Technology Fingerprinter</h2>
+            <p class="desc">Deteksi CMS, framework, JS library, server tech.</p>
+
+            <div class="form-group">
+                <label>URL</label>
+                <input type="text" x-model="forms.url" placeholder="https://example.com">
+            </div>
+            <button @click="runTech()" class="btn-primary">🧬 Detect</button>
+
+            <template x-if="results.tech">
+                <div class="result-card">
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">Detected</span>
+                            <span class="metric-value" x-text="results.tech.count"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Server</span>
+                            <span class="metric-value" x-text="results.tech.server || 'hidden'"></span>
+                        </div>
+                    </div>
+                    <template x-if="results.tech.detected.length">
+                        <div class="tags">
+                            <template x-for="t in results.tech.detected">
+                                <span class="tag" x-text="t"></span>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ VULN ============ -->
+        <div x-show="active === 'vuln' && !loading" x-cloak>
+            <h2>🛡️ Vulnerability Checker</h2>
+            <p class="desc">Cek CVE umum, exposed files, misconfig.</p>
+
+            <div class="form-group">
+                <label>URL</label>
+                <input type="text" x-model="forms.url" placeholder="https://example.com">
+            </div>
+            <button @click="runVuln()" class="btn-primary">🛡️ Check</button>
+
+            <template x-if="results.vuln">
+                <div class="result-card">
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">Critical</span>
+                            <span class="metric-value error" x-text="results.vuln.critical"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">High</span>
+                            <span class="metric-value warn" x-text="results.vuln.high"></span>
+                        </div>
+                    </div>
+                    <template x-if="results.vuln.findings.length">
+                        <div class="findings">
+                            <template x-for="f in results.vuln.findings">
+                                <div class="finding" :class="'ind-' + f.severity.toLowerCase()">
+                                    <div class="ind-header">
+                                        <strong x-text="f.type"></strong>
+                                        <span class="ind-sev" x-text="f.severity"></span>
+                                    </div>
+                                    <p class="ind-detail" x-text="f.detail"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <template x-if="!results.vuln.findings.length">
+                        <p class="info-line success">✅ Tidak ada kerentanan terdeteksi</p>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ EMAIL ============ -->
+        <div x-show="active === 'email' && !loading" x-cloak>
+            <h2>📧 Email OSINT</h2>
+            <p class="desc">SPF, DMARC, DKIM, MX records.</p>
+
+            <div class="form-group">
+                <label>Domain</label>
+                <input type="text" x-model="forms.domain" placeholder="example.com">
+            </div>
+            <button @click="runEmail()" class="btn-primary">📧 Audit</button>
+
+            <template x-if="results.email">
+                <div class="result-card">
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric-label">SPF</span>
+                            <span class="metric-value" x-text="results.email.spf_status"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">DMARC</span>
+                            <span class="metric-value" x-text="results.email.dmarc_status"></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Risk</span>
+                            <span class="metric-value" x-text="results.email.risk_score + '/100'"></span>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ============ HISTORY ============ -->
+        <div x-show="showHistory && !loading" x-cloak>
+            <h2>📜 Scan History</h2>
+            <div class="history-actions">
+                <button @click="loadHistory()" class="btn-secondary">🔄 Refresh</button>
+                <button @click="clearHistory()" class="btn-danger">🗑️ Clear</button>
+            </div>
+            <template x-if="history.length">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Time</th><th>Module</th><th>Target</th><th>Risk</th></tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="h in history" :key="h.id">
+                            <tr>
+                                <td class="mono" x-text="h.timestamp.slice(0, 19)"></td>
+                                <td x-text="h.module"></td>
+                                <td x-text="h.target.slice(0, 40)"></td>
+                                <td><span :class="'risk-' + getRiskClass(h.risk_score)" x-text="h.risk_score"></span></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </template>
+            <template x-if="!history.length">
+                <p class="info-line">Belum ada history</p>
+            </template>
+        </div>
+
+    </section>
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+    <div class="container">
+        <p>🛡️ CyberShield v6.0 — <strong>Ethical use only</strong> — UU ITE Pasal 30</p>
+    </div>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+                                       </html>
