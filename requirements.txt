@@ -5,4 +5,4 @@ certifi
 urllib3
 dnspython
 python-dotenv
-bcrypt
+
